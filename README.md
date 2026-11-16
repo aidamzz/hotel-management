@@ -15,6 +15,7 @@ Windows:
 ```bash
 .venv\Scripts\activate
 pip install -r requirements.txt
+copy  .env
 python manage.py migrate
 python manage.py runserver
 ```
@@ -24,6 +25,7 @@ macOS and Linux:
 ```bash
 source .venv/bin/activate
 pip install -r requirements.txt
+cp  .env
 python manage.py migrate
 python manage.py runserver
 ```
@@ -73,16 +75,9 @@ A successful booking returns `201` with the booking and the assigned room. The a
 
 Send check-in and check-out as ISO-8601 timestamps. Check-out must be later than check-in.
 
-## Technical decisions
-
-**SQLite.** Reviewers can clone the repo, migrate, and run it without another database. SQLite cannot `SELECT FOR UPDATE`. Each transaction uses `IMMEDIATE` mode so the write lock is reserved before the availability check, which stops two concurrent bookings from taking the same room. On PostgreSQL the same code path locks the candidate room rows with `select_for_update()`. A production database could also add an exclusion constraint on `(room_id, tstzrange(check_in, check_out))`.
-
 **Exact feature match.** A request for 2 beds and a sea view is assigned only a room with exactly those features, not a larger room.
 
 **Half-open stays.** A booking occupies `[check_in, check_out)`. A later stay may start at the earlier stay's check-out time. Overlap is `existing.check_in < requested.check_out` and `existing.check_out > requested.check_in`.
 
-**No user model.** The assignment does not ask for user management. The booking stores the caller-supplied identifier and does not check that a user exists.
-
 **Delete protection.** Bookings use `on_delete=PROTECT`, so a room with history cannot be removed through the API.
 
-**Development secret key.** `SECRET_KEY` in settings is for local use only and must be replaced before any real deployment. `DEBUG` is on and the API allows anonymous access.
