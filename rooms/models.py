@@ -1,3 +1,5 @@
+import uuid
+
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -8,6 +10,7 @@ class Room(models.Model):
         MOUNTAIN = "mountain", "Mountain"
         YARD = "yard", "Yard"
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=64, unique=True)
     beds = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)]
@@ -22,6 +25,7 @@ class Room(models.Model):
 
 
 class Booking(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     room = models.ForeignKey(
         Room,
         on_delete=models.PROTECT,

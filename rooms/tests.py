@@ -1,5 +1,6 @@
 import threading
 from unittest import skipUnless
+from uuid import UUID
 
 from django.db import close_old_connections, connection
 from django.test import TransactionTestCase
@@ -108,12 +109,30 @@ class RoomApiTests(APITestCase):
 
 class BookingApiTests(APITestCase):
     def setUp(self):
-        self.sea_small = Room.objects.create(label="A", beds=2, view=Room.View.SEA)
-        self.sea_small_later = Room.objects.create(
-            label="B", beds=2, view=Room.View.SEA
+        self.sea_small = Room.objects.create(
+            id=UUID("00000000-0000-4000-8000-000000000001"),
+            label="A",
+            beds=2,
+            view=Room.View.SEA,
         )
-        Room.objects.create(label="C", beds=3, view=Room.View.SEA)
-        Room.objects.create(label="D", beds=2, view=Room.View.MOUNTAIN)
+        self.sea_small_later = Room.objects.create(
+            id=UUID("00000000-0000-4000-8000-000000000002"),
+            label="B",
+            beds=2,
+            view=Room.View.SEA,
+        )
+        Room.objects.create(
+            id=UUID("00000000-0000-4000-8000-000000000003"),
+            label="C",
+            beds=3,
+            view=Room.View.SEA,
+        )
+        Room.objects.create(
+            id=UUID("00000000-0000-4000-8000-000000000004"),
+            label="D",
+            beds=2,
+            view=Room.View.MOUNTAIN,
+        )
 
     def test_assigns_lowest_id_matching_room(self):
         response = self.client.post(
@@ -129,7 +148,7 @@ class BookingApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["user_identifier"], "user-42")
-        self.assertEqual(response.data["room"]["id"], self.sea_small.id)
+        self.assertEqual(response.data["room"]["id"], str(self.sea_small.id))
         self.assertEqual(response.data["room"]["label"], "A")
         self.assertEqual(response.data["room"]["beds"], 2)
         self.assertEqual(response.data["room"]["view"], "sea")
@@ -168,7 +187,7 @@ class BookingApiTests(APITestCase):
         )
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.data["room"]["id"], self.sea_small_later.id)
+        self.assertEqual(second.data["room"]["id"], str(self.sea_small_later.id))
 
         third = self.client.post(
             "/api/bookings/",
@@ -209,7 +228,7 @@ class BookingApiTests(APITestCase):
         )
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.data["room"]["id"], self.sea_small.id)
+        self.assertEqual(second.data["room"]["id"], str(self.sea_small.id))
 
     def test_rejects_checkout_that_is_not_after_checkin(self):
         equal = self.client.post(
