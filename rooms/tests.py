@@ -1,6 +1,11 @@
+import threading
+from unittest import skipUnless
+
+from django.db import close_old_connections, connection
+from django.test import TransactionTestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from .models import Booking, Room
 
@@ -261,3 +266,45 @@ class BookingApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["room"]["label"], "D")
+
+
+@skipUnless(
+    connection.vendor == "postgresql",
+    "Concurrent room locks are enforced by PostgreSQL.",
+)
+class ConcurrentBookingTests(TransactionTestCase):
+    def test_two_requests_cannot_keep_the_same_room(self):
+        Room.objects.create(label="only", beds=2, view=Room.View.SEA)
+        barrier = threading.Barrier(2)
+        statuses = []
+
+        def book(user_identifier):
+            close_old_connections()
+            client = APIClient()
+            barrier.wait(timeout=5)
+            response = client.post(
+                "/api/bookings/",
+                {
+                    "user_identifier": user_identifier,
+                    "beds": 2,
+                    "view": "sea",
+                    "check_in": "2026-12-01T15:00:00Z",
+                    "check_out": "2026-12-05T11:00:00Z",
+                },
+                format="json",
+            )
+            statuses.append(response.status_code)
+            close_old_connections()
+
+        threads = [
+            threading.Thread(target=book, args=(f"user-{index}",))
+            for index in (1, 2)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+            self.assertFalse(thread.is_alive())
+
+        self.assertCountEqual(statuses, [status.HTTP_201_CREATED, status.HTTP_409_CONFLICT])
+        self.assertEqual(Booking.objects.count(), 1)

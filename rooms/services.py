@@ -1,4 +1,4 @@
-from django.db import connection, transaction
+from django.db import IntegrityError, connection, transaction
 
 from .models import Booking, Room
 
@@ -13,10 +13,11 @@ def book_room(*, user_identifier, beds, view, check_in, check_out):
     Stays are half-open: a booking occupies [check_in, check_out). A later
     stay may start at the earlier stay's check-out instant.
 
-    Candidate rooms are locked for the duration of the transaction so two
-    concurrent requests cannot take the same room. Databases that support
-    SELECT FOR UPDATE lock those rows. SQLite does not, and instead reserves
-    its write lock at the start of the transaction (transaction_mode=IMMEDIATE).
+    Matching rooms are locked in id order for the whole transaction. A second
+    request for those rooms waits, then sees the committed booking and takes
+    another room or fails. PostgreSQL enforces the same rule with an exclusion
+    constraint, so an overlapping insert cannot commit even if the lock is
+    bypassed. That conflict rolls back to a savepoint and the search continues.
     """
     with transaction.atomic():
         candidates = Room.objects.filter(beds=beds, view=view).order_by("id")
@@ -28,12 +29,17 @@ def book_room(*, user_identifier, beds, view, check_in, check_out):
                 check_in__lt=check_out,
                 check_out__gt=check_in,
             ).exists()
-            if not overlap:
-                return Booking.objects.create(
-                    room=room,
-                    user_identifier=user_identifier,
-                    check_in=check_in,
-                    check_out=check_out,
-                )
+            if overlap:
+                continue
+            try:
+                with transaction.atomic():
+                    return Booking.objects.create(
+                        room=room,
+                        user_identifier=user_identifier,
+                        check_in=check_in,
+                        check_out=check_out,
+                    )
+            except IntegrityError:
+                continue
 
     raise NoRoomAvailable

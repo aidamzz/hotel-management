@@ -10,9 +10,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.environ.get("SECRET_KEY")
-if not SECRET_KEY:
-    raise ImproperlyConfigured("Set SECRET_KEY in the project .env file.")
+def env(name, default=None, required=False):
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        if required:
+            raise ImproperlyConfigured(f"Set {name} in the project .env file.")
+        return default
+    return value.strip()
+
+
+SECRET_KEY = env("SECRET_KEY", required=True)
 
 DEBUG = False
 
@@ -60,12 +67,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-        # Reserve the write lock at the start of each transaction. SQLite has
-        # no SELECT FOR UPDATE, so this is what keeps overlapping bookings
-        # from being committed concurrently.
-        "OPTIONS": {"transaction_mode": "IMMEDIATE"},
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env("POSTGRES_DB", required=True),
+        "USER": env("POSTGRES_USER", required=True),
+        "PASSWORD": env("POSTGRES_PASSWORD", default=""),
+        "HOST": env("POSTGRES_HOST", default="localhost"),
+        "PORT": env("POSTGRES_PORT", default="5432"),
     }
 }
 

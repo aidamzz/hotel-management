@@ -73,6 +73,8 @@ curl -X POST http://127.0.0.1:8000/api/bookings/ ^
 
 A successful booking returns `201` with the booking and the assigned room. The assigned room is the lowest `id` among rooms that match the requested bed count and view and are free for the whole stay. If none are free, the response is `409`.
 
+Matching rooms are locked for the transaction, so two concurrent requests cannot both take the same room. On PostgreSQL, migration `0002_booking_no_overlap` also adds an exclusion constraint: the database rejects a second overlapping stay on that room. Run `migrate` after the database settings point at PostgreSQL.
+
 Send check-in and check-out as ISO-8601 timestamps. Check-out must be later than check-in.
 
 **Exact feature match.** A request for 2 beds and a sea view is assigned only a room with exactly those features, not a larger room.
