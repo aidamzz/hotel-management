@@ -4,37 +4,117 @@ Django REST API for managing hotel rooms and booking an available room by bed co
 
 ## Setup
 
-Requires Python 3.13.
+### Prerequisites
+
+- Python 3.13
+- PostgreSQL
+- Git
+
+### 1. Clone the repository
 
 ```bash
-python -m venv .venv
+git clone https://github.com/aidamzz/hotel-management.git
+cd hotel-management
 ```
 
-Windows:
+### 2. Create and activate a virtual environment
+
+**Windows (PowerShell):**
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+py -3.13 -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+### 3. Install dependencies
 
 ```bash
-.venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-copy  .env
+```
+
+### 4. Create the PostgreSQL database
+
+Make sure PostgreSQL is running. Open a PostgreSQL shell (for example, `psql -U postgres`) and execute:
+
+```sql
+CREATE ROLE hotel_user WITH LOGIN PASSWORD 'change-me' CREATEDB;
+CREATE DATABASE hotel_booking OWNER hotel_user;
+```
+
+You can replace the username, database name, and password with your own values.
+
+### 5. Configure environment variables
+
+Create your local `.env` file from the example file.
+
+**Windows (PowerShell):**
+
+```powershell
+Copy-Item .env.example .env
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+copy .env.example .env
+```
+
+Open `.env` and configure the values:
+
+```dotenv
+SECRET_KEY=your-generated-secret-key
+POSTGRES_DB=hotel_booking
+POSTGRES_USER=hotel_user
+POSTGRES_PASSWORD=change-me
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+```
+
+Generate a Django secret key with:
+
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Use the generated value for `SECRET_KEY`.
+
+Do not commit your `.env` file. It is excluded through `.gitignore`.
+
+### 6. Apply database migrations
+
+```bash
 python manage.py migrate
+```
+
+The PostgreSQL-specific migration creates the `btree_gist` extension and adds a database constraint to prevent overlapping bookings for the same room.
+
+Make sure your PostgreSQL database user has permission to create this extension.
+
+### 7. Run the application
+
+```bash
 python manage.py runserver
 ```
 
-macOS and Linux:
+The API is available at:
 
-```bash
-source .venv/bin/activate
-pip install -r requirements.txt
-cp  .env
-python manage.py migrate
-python manage.py runserver
-```
+http://127.0.0.1:8000/api/
 
-The API is at `http://127.0.0.1:8000/api/`. Tests:
+### Run tests
 
 ```bash
 python manage.py test
 ```
+
+The test suite should be run against PostgreSQL because the project uses PostgreSQL-specific database behavior.
 
 There is no authentication. `user_identifier` on a booking is an opaque string; this project does not manage user accounts.
 
