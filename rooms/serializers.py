@@ -43,7 +43,9 @@ class BookingCreateSerializer(serializers.Serializer):
     check_out = serializers.DateTimeField()
 
     def validate(self, attrs):
-        if attrs["check_out"] <= attrs["check_in"]:
+        check_in = attrs.get("check_in")
+        check_out = attrs.get("check_out")
+        if check_in is not None and check_out is not None and check_out <= check_in:
             raise serializers.ValidationError(
                 {"check_out": "Check-out must be after check-in."}
             )

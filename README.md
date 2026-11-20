@@ -64,6 +64,8 @@ curl -X POST http://127.0.0.1:8000/api/rooms/ ^
 | `POST` | `/api/bookings/` | Book a matching available room |
 | `GET` | `/api/bookings/` | List bookings |
 | `GET` | `/api/bookings/{id}/` | Retrieve a booking |
+| `PUT` | `/api/bookings/{id}/` | Replace a booking and reassign a room if needed |
+| `PATCH` | `/api/bookings/{id}/` | Update part of a booking and reassign a room if needed |
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/bookings/ ^
@@ -72,6 +74,8 @@ curl -X POST http://127.0.0.1:8000/api/bookings/ ^
 ```
 
 A successful booking returns `201` with the booking and the assigned room. The assigned room is the lowest `id` among rooms that match the requested bed count and view and are free for the whole stay. If none are free, the response is `409`.
+
+`PUT` and `PATCH` use the same body. The current room stays assigned when it still matches the new beds, view, and dates. Otherwise the booking moves to the lowest-id free match. If no room fits, the response is `409` and the booking is left unchanged.
 
 Matching rooms are locked for the transaction, so two concurrent requests cannot both take the same room. On PostgreSQL, migration `0002_booking_no_overlap` also adds an exclusion constraint: the database rejects a second overlapping stay on that room. Run `migrate` after the database settings point at PostgreSQL.
 

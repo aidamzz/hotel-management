@@ -286,6 +286,113 @@ class BookingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["room"]["label"], "D")
 
+    def test_update_keeps_the_room_when_it_still_matches(self):
+        created = self.client.post(
+            "/api/bookings/",
+            {
+                "user_identifier": "user-1",
+                "beds": 2,
+                "view": "sea",
+                "check_in": "2026-12-01T15:00:00Z",
+                "check_out": "2026-12-05T11:00:00Z",
+            },
+            format="json",
+        )
+        updated = self.client.patch(
+            f"/api/bookings/{created.data['id']}/",
+            {
+                "check_in": "2026-12-02T15:00:00Z",
+                "check_out": "2026-12-06T11:00:00Z",
+            },
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        self.assertEqual(updated.data["room"]["id"], str(self.sea_small.id))
+        self.assertEqual(updated.data["user_identifier"], "user-1")
+        self.assertEqual(Booking.objects.count(), 1)
+
+    def test_update_moves_to_another_room_when_the_current_one_does_not_match(self):
+        created = self.client.post(
+            "/api/bookings/",
+            {
+                "user_identifier": "user-1",
+                "beds": 2,
+                "view": "sea",
+                "check_in": "2026-12-01T15:00:00Z",
+                "check_out": "2026-12-05T11:00:00Z",
+            },
+            format="json",
+        )
+        updated = self.client.put(
+            f"/api/bookings/{created.data['id']}/",
+            {
+                "user_identifier": "user-1",
+                "beds": 2,
+                "view": "mountain",
+                "check_in": "2026-12-01T15:00:00Z",
+                "check_out": "2026-12-05T11:00:00Z",
+            },
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        self.assertEqual(updated.data["room"]["label"], "D")
+
+    def test_update_moves_when_the_current_room_is_taken_for_the_new_dates(self):
+        first = self.client.post(
+            "/api/bookings/",
+            {
+                "user_identifier": "user-1",
+                "beds": 2,
+                "view": "sea",
+                "check_in": "2026-12-01T15:00:00Z",
+                "check_out": "2026-12-03T11:00:00Z",
+            },
+            format="json",
+        )
+        self.client.post(
+            "/api/bookings/",
+            {
+                "user_identifier": "user-2",
+                "beds": 2,
+                "view": "sea",
+                "check_in": "2026-12-04T15:00:00Z",
+                "check_out": "2026-12-08T11:00:00Z",
+            },
+            format="json",
+        )
+        updated = self.client.patch(
+            f"/api/bookings/{first.data['id']}/",
+            {
+                "check_in": "2026-12-05T15:00:00Z",
+                "check_out": "2026-12-07T11:00:00Z",
+            },
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        self.assertEqual(updated.data["room"]["id"], str(self.sea_small_later.id))
+
+    def test_update_leaves_the_booking_unchanged_when_no_room_fits(self):
+        created = self.client.post(
+            "/api/bookings/",
+            {
+                "user_identifier": "user-1",
+                "beds": 2,
+                "view": "sea",
+                "check_in": "2026-12-01T15:00:00Z",
+                "check_out": "2026-12-05T11:00:00Z",
+            },
+            format="json",
+        )
+        updated = self.client.patch(
+            f"/api/bookings/{created.data['id']}/",
+            {"beds": 5, "view": "yard"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_409_CONFLICT)
+        stored = Booking.objects.get(pk=created.data["id"])
+        self.assertEqual(stored.room_id, self.sea_small.id)
+        self.assertEqual(stored.user_identifier, "user-1")
+
 
 @skipUnless(
     connection.vendor == "postgresql",
